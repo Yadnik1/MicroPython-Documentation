@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css?family=Roboto"
+    />
+    <title>Blog</title>
+    <style>
+      body,
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        font-family: "Roboto", sans-serif;
+      }
+      header {
+        text-align: center;
+        color: #007f00;
+      }
+      header ol {
+        margin: 0;
+        padding: 0;
+        font-size: medium;
+        list-style-type: none;
+        color: #007f00;
+        text-align: center;
+      }
+      img {
+        width: 100%;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      h3 {
+        text-align: center;
+        font-weight: bold;
+        color: #3f3f3f;
+      }
+      div {
+        background-color: #eeeeee;
+        margin: 10px;
+        border-radius: 25px;
+        padding: 20px;
+        color: #000000;
+        box-shadow: 0 0 20px #5a5a5a;
+      }
+      a {
+        color: #007f00;
+      }
+      .heading {
+        color: inherit;
+        text-decoration: inherit;
+      }
+      .stitle {
+        box-shadow: none;
+        border-radius: 0;
+        border: 0;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="stitle">
+        <h1><b>Building a MicroPython port for QEMU on Zephyr RTOS</b></h1>
+      </div>
+      <div>
+        This blog covers the details and technicalities of the process of
+        building a MicroPython port for QEMU on Zephyr RTOS which will be
+        flashed on the BeagleConnect Freedom Board.
+        <h3>Table of Contents</h3>
+        <ol>
+          <li><a class="heading" href="#1">The BeagleConnect Freedom</a></li>
+          <li><a class="heading" href="#2">What is MicroPython</a></li>
+          <li><a class="heading" href="#3">Setting up Zephyr RTOS</a></li>
+          <li><a class="heading" href="#4">QEMU</a></li>
+          <li><a class="heading" href="#5">Building port on Zephyr RTOS</a></li>
+          <li><a class="heading" href="#6">References</a></li>
+        </ol>
+      </div>
+    </header>
+    <!-- <div class="wrapper"> -->
+    <div>
+      <h3 id="1">The BeagleConnect Freedom</h3>
+      <p>
+        BeagleConnect is a revolutionary technology which eliminates low-level
+        software development for IoT and IIoT applications, such as building
+        automation, factory automation, and home automation. What sets it apart
+        is that it eliminates the need of relying on software libraries enabling
+        it to be used for interfacing a greater number of sensors, actuators and
+        indicators for communicating over various networks compared to other
+        conventional solutions. This can be achieved since it is built with
+        fully open source software with submissions to mainline Linux and Zephyr
+        repositories to aide in support and porting.
+      </p>
+      <p>
+        BeagleConnect Freedom wireless hardware is based on the TI CC1352 and is
+        multiprotocol and multi-band Sub-1 GHz and 2.4-GHz wireless
+        microcontroller (MCU).The first available BeagleConnect solution.
+        BeagleConnect currently has Greybus support which is an application
+        layer protocol that can be described as a bus transport, in that it
+        conveys bus-specific messages back and forth between Linux and a
+        connected device.
+      </p>
+      <p>
+        The motive of this project is to port MicroPython and CircuitPython to
+        the firmware to be flashed on the BeagleConnect Freedom as well as
+        writing MicroPython drivers for the the BeagleConnect Platform. In this
+        Blog we will explore the building process for the Zephyr RTOS which
+        basically one step prior to the process of flashing it on the hardware.
+      </p>
+    </div>
+    <div>
+      <h3 id="2">What is MicroPython?</h3>
+      <p>
+        MicroPython is a lean and efficient implementation of the Python 3
+        programming language that includes a small subset of the Python standard
+        library and is optimised to run on microcontrollers and in constrained
+        environments.
+      </p>
+      <ul>
+        Features supported by the MicroPython Port to Zephyr RTOS are:
+        <li>REPL (interactive prompt) over Zephyr UART console.</li>
+        <li>utime module for time measurements and delays.</li>
+        <li>machine.Pin class for GPIO control, with IRQ support.</li>
+        <li>machine.I2C class for I2C control.</li>
+        <li>usocket module for networking (IPv4/IPv6).</li>
+        <li>
+          "Frozen modules" support to allow to bundle Python modules together
+          with firmware. Including complete applications, including with
+          run-on-boot capability.
+        </li>
+        <li>
+          virtual filesystem with FAT and littlefs formats, backed by either
+          DiskAccess or FlashArea (flash map).
+        </li>
+      </ul>
+    </div>
+    <div>
+      <h3 id="3">Setting up Zephyr RTOS</h3>
+      <p>
+        I have used the fedora distribution and will be sharing commands for the
+        same. However documentation and support is available for Ubuntu, Fedora,
+        Clear Linux, Arch Linux along with Windows and macOS.
+      </p>
+      <ol>
+        The following steps need to be followed. I have shared the respective
+        commands for the corresponding steps.
+        <li>
+          Update Your Operating System:<br />Ensure your host system is up to
+          date.<br />$ sudo dnf upgrade
+        </li>
+        <li>
+          Install Requirements and Dependencies:<br />Note that both Ninja and
+          Make are installed with these instructions; However we will need only
+          one.
+          <ul>
+            <li>
+              $ sudo dnf group install "Development Tools" "C Development Tools
+              and Libraries"
+            </li>
+            <li>
+              $ dnf install git cmake ninja-build gperf ccache dfu-util dtc wget
+              \ python3-pip python3-tkinter xz file glibc-devel.i686
+              libstdc++-devel.i686 python38 \ SDL2-devel
+            </li>
+          </ul>
+        </li>
+        <li>
+          Install CMake:<br />CMake version 3.13.1 or higher is required.
+          Download and install a packaged cmake from the CMake project site.
+          <br />$ cd ~ <br />$ wget
+          <a
+            href="https://github.com/Kitware/CMake/releases/download/v3.15.3/cmake-3.15.3-Linux-x86_64.sh"
+            >https://github.com/Kitware/CMake/releases/download/v3.15.3/cmake-3.15.3-Linux-x86_64.sh</a
+          >
+          <br />$ chmod +x cmake-3.15.3-Linux-x86_64.sh<br />
+          $ sudo ./cmake-3.15.3-Linux-x86_64.sh --skip-license
+          --prefix=/usr/local
+          <br />$ hash -r
+        </li>
+        <li>
+          Install the Zephyr Software Development Kit (SDK):<br />Use of the
+          Zephyr SDK is optional, but recommended. Some of the dependencies
+          installed above are only needed for installing the SDK.<br />Zephyr’s
+          SDK contains all necessary tools to build Zephyr on all supported
+          architectures.<br />Additionally, it includes host tools such as
+          custom QEMU binaries and a host compiler.<br />Download the
+          <a href="https://github.com/zephyrproject-rtos/sdk-ng/releases"
+            >latest SDK</a
+          >
+          as a self-extracting installation binary:<br />$ wget
+          <a
+            href="https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.12.4/zephyr-sdk-0.12.4-x86_64-linux-setup.run"
+            >https://github.com/zephyrproject-rtos/sdk-ng/releases/download/v0.12.4/zephyr-sdk-0.12.4-x86_64-linux-setup.run</a
+          ><br />Run the installation binary, installing the SDK at
+          ~/zephyr-sdk-0.12.4<br />$ cd &lt;sdk download directory&gt;<br />$
+          chmod +x zephyr-sdk-0.12.4-x86_64-linux-setup.run<br />$
+          ./zephyr-sdk-0.12.4-x86_64-linux-setup.run -- -d
+          ~/zephyr-sdk-0.12.4<br />We are now done with setup and installation
+          process.
+        </li>
+      </ol>
+    </div>
+    <div>
+      <h3 id="4">QEMU</h3>
+      <p>QEMU is a generic and open source machine emulator and virtualizer.</p>
+      <p>
+        When used as a machine emulator, QEMU can run OSes and programs made for
+        one machine (e.g. an ARM board) on a different machine (e.g. your own
+        PC). By using dynamic translation, it achieves very good performance.
+      </p>
+      <p>
+        We will be also using it for running the Zephyr RTOS and building
+        MicroPython for the ARM Architecture on our x86 machine which can be
+        later flashed on our actual hardware.
+      </p>
+    </div>
+    <div>
+      <h3 id="5">Building port on Zephyr RTOS</h3>
+      We don't have to redo the Zephyr installation, we have to just switch from
+      master to a tagged release, we can instead do:<br />$ cd
+      zephyrproject/zephyr<br />$ git checkout v2.5.0<br />$ west update<br />Once
+      Zephyr is installed we may then need to configure your environment, for
+      example by sourcing zephyrproject/zephyr/zephyr-env.sh<br />Once Zephyr is
+      ready to use we can build the MicroPython port.<br />We will first have to
+      clone the MicroPython repository into our home directory using :<br />$
+      Git clone
+      <a href="https://github.com/micropython/micropython"
+        >https://github.com/micropython/micropython</a
+      ><br />To build for QEMU we finally run<br />
+      $ west build -b qemu_cortex_m3 ~/micropython/ports/zephyr<br />Once the
+      port has been built successfully the resulting firmware is flashed to the
+      BeagleConnect Freedom Board. A successful build looks as follows:<br />
+      <img src="image1.png" alt="qemu_cortex" /><br /><br />
+      <img src="image2.png" alt="zephyrkconfig" /><br /><br />
+      <img src="image3.png" alt="building application" />
+    </div>
+    <div>
+      <h3 id="6">References</h3>
+      <ul>
+        <li>
+          <a
+            href="https://github.com/micropython/micropython/blob/master/ports/zephyr/README.md"
+            >https://github.com/micropython/micropython/blob/master/ports/zephyr/README.md</a
+          >
+        </li>
+        <li>
+          <a href="https://docs.zephyrproject.org/latest/application/index.html"
+            >https://docs.zephyrproject.org/latest/application/index.html</a
+          >
+        </li>
+        <li>
+          <a
+            href="https://docs.zephyrproject.org/latest/getting_started/installation_linux.html#installation-"
+            >https://docs.zephyrproject.org/latest/getting_started/installation_linux.html#installation-</a
+          >
+        </li>
+        <li>
+          <a href="https://github.com/micropython/micropython"
+            >https://github.com/micropython/micropython</a
+          >
+        </li>
+      </ul>
+    </div>
+    <!-- </div> -->
+  </body>
+</html>
